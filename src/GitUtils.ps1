@@ -18,15 +18,20 @@
 function Get-GitDirectory {
     $pathInfo = Microsoft.PowerShell.Management\Get-Location
     if (!$pathInfo -or ($pathInfo.Provider.Name -ne 'FileSystem')) {
-        $null
+        return $null
     }
     elseif ($Env:GIT_DIR) {
-        $Env:GIT_DIR -replace '\\|/', [System.IO.Path]::DirectorySeparatorChar
+        return $Env:GIT_DIR -replace '\\|/', [System.IO.Path]::DirectorySeparatorChar
     }
     else {
         $currentDir = Get-Item -LiteralPath $pathInfo -Force
         while ($currentDir) {
             $gitDirPath = Join-Path $currentDir.FullName .git
+            if ($gitDirPath -eq "$HOME\.git") {
+                Write-Debug "ignoring '$HOME\.git'"
+                return $null
+            }
+
             if (Test-Path -LiteralPath $gitDirPath -PathType Container) {
                 return $gitDirPath
             }
@@ -35,7 +40,13 @@ function Get-GitDirectory {
             if (Test-Path -LiteralPath $gitDirPath -PathType Leaf) {
                 $gitDirPath = Invoke-Utf8ConsoleCommand { git rev-parse --git-dir 2>$null }
                 if ($gitDirPath) {
-                    return $gitDirPath
+                    if ($gitDirPath -eq "$HOME\.git") {
+                        Write-Debug "ignoring '$HOME\.git'"
+                        return $null
+                    }
+                    else {
+                        return $gitDirPath
+                    }
                 }
             }
 
@@ -49,7 +60,13 @@ function Get-GitDirectory {
                     $bareDir = Invoke-Utf8ConsoleCommand { git rev-parse --git-dir 2>$null }
                     if ($bareDir -and (Test-Path -LiteralPath $bareDir -PathType Container)) {
                         $resolvedBareDir = (Resolve-Path $bareDir).Path
-                        return $resolvedBareDir
+                        if ($resolvedBareDir -eq "$HOME\.git") {
+                            Write-Debug "ignoring '$HOME\.git'"
+                            return $null
+                        }
+                        else {
+                            return $resolvedBareDir
+                        }
                     }
                 }
             }
